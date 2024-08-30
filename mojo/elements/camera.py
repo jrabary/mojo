@@ -25,6 +25,16 @@ class Camera(TransformElement):
         return Camera(mojo, mjcf)
 
     @staticmethod
+    def get_all(
+        mojo: Mojo,
+    ) -> list[Self]:
+        try:
+            mjcfs = mjcf_utils.safe_find_all(mojo.root_element.mjcf, "camera")
+        except ValueError:
+            mjcfs = []
+        return [Camera(mojo, mjcf) for mjcf in mjcfs]
+
+    @staticmethod
     def create(
         mojo: Mojo,
         parent: TransformElement = None,
@@ -37,7 +47,8 @@ class Camera(TransformElement):
         position = np.array([0, 0, 0]) if position is None else position
         quaternion = np.array([1, 0, 0, 0]) if quaternion is None else quaternion
         if parent is not None and not isinstance(parent, Body):
-            raise ValueError("Parent must be of type body for camera.")
+            msg = "Parent must be of type body for camera."
+            raise ValueError(msg)
         parent_mjcf = (
             mojo.root_element.mjcf.worldbody if parent is None else parent.mjcf
         )
@@ -49,7 +60,10 @@ class Camera(TransformElement):
         if sensor_size:
             camera_params["sensor_size"] = sensor_size
         new_camera = parent_mjcf.add(
-            "camera", pos=position, quat=quaternion, **camera_params
+            "camera",
+            pos=position,
+            quat=quaternion,
+            **camera_params,
         )
         mojo.mark_dirty()
         return Camera(mojo, new_camera)
@@ -95,3 +109,22 @@ class Camera(TransformElement):
 
     def get_fovy(self) -> np.ndarray:
         return self.mjcf.fovy
+
+    def render(
+        self,
+        resolution: tuple[int, int] = None,
+        rgb: bool = True,
+        depth: bool = False,
+    ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
+        resolution = resolution or (128, 128)
+        renderer = self._mojo.get_renderer(resolution)
+        renderer.update_scene(self._mojo.data, self.name)
+        result_to_return = None
+        if rgb:
+            result_to_return = rgb_render = renderer.render()
+        if depth:
+            renderer.enable_depth_rendering()
+            depth_render = renderer.render()
+            renderer.disable_depth_rendering()
+            result_to_return = (rgb_render, depth_render) if rgb else depth_render
+        return result_to_return

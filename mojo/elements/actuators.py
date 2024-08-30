@@ -15,7 +15,15 @@ if TYPE_CHECKING:
 
 
 class Actuator(MujocoElement):
-    pass
+    @property
+    def joint(self) -> Joint:
+        """Get the joint associated with this actuator."""
+        return Joint(self._mojo, self.mjcf.joint)
+
+    def actuate(self, value: float) -> None:
+        """Set the actuator value."""
+        phys_act = self._mojo.physics.bind(self.mjcf)
+        phys_act.ctrl = value
 
 
 class GeneralActuator(Actuator):
@@ -36,11 +44,15 @@ class GeneralActuator(Actuator):
         name: str = None,
     ) -> mjcf.Element:
         if joint.name is None:
-            raise ValueError("Joint must have a name")
+            msg = "Joint must have a name"
+            raise ValueError(msg)
         actuator_mjcf = mojo.root_element.mjcf.actuator
         ctrlrange = np.array([0, 0]) if ctrlrange is None else ctrlrange
         new_actuator = actuator_mjcf.add(
-            tag, joint=joint.name, ctrlrange=ctrlrange, name=name
+            tag,
+            joint=joint.name,
+            ctrlrange=ctrlrange,
+            name=name,
         )
         mojo.mark_dirty()
         return new_actuator
@@ -53,7 +65,11 @@ class GeneralActuator(Actuator):
         name: str = None,
     ) -> Self:
         new_general_actuator = GeneralActuator._create(
-            "general", mojo, joint, ctrlrange, name
+            "general",
+            mojo,
+            joint,
+            ctrlrange,
+            name,
         )
         return GeneralActuator(mojo, new_general_actuator)
 
@@ -67,7 +83,11 @@ class MotorActuator(GeneralActuator):
         name: str = None,
     ) -> Self:
         new_motor_actuator = GeneralActuator._create(
-            "motor", mojo, joint, ctrlrange, name
+            "motor",
+            mojo,
+            joint,
+            ctrlrange,
+            name,
         )
         return MotorActuator(mojo, new_motor_actuator)
 
@@ -86,7 +106,11 @@ class PositionActuator(GeneralActuator):
         inheritrange: float = 0,
     ) -> Self:
         new_pos_actuator = GeneralActuator._create(
-            "position", mojo, joint, ctrlrange, name
+            "position",
+            mojo,
+            joint,
+            ctrlrange,
+            name,
         )
         new_pos_actuator.kp = kp
         new_pos_actuator.kv = kv
@@ -106,7 +130,11 @@ class VelocityActuator(GeneralActuator):
         kv: float = 1,
     ) -> Self:
         new_vel_actuator = GeneralActuator._create(
-            "velocity", mojo, joint, ctrlrange, name
+            "velocity",
+            mojo,
+            joint,
+            ctrlrange,
+            name,
         )
         new_vel_actuator.kv = kv
         return MotorActuator(mojo, new_vel_actuator)

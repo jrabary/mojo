@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import mujoco
 import numpy as np
 from dm_control import mjcf
+from typing_extensions import Self
 
 if TYPE_CHECKING:
     from mojo import Mojo
@@ -53,6 +54,13 @@ class MujocoElement(ABC):
     @property
     def name(self):
         return self.mjcf.name
+
+    @staticmethod
+    def get_all(
+        mojo: Mojo,
+    ) -> list[Self]:
+        msg = "Must be implemented by children"
+        raise NotImplementedError(msg)
 
     def __eq__(self, other):
         return (

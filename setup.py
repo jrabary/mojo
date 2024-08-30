@@ -16,11 +16,12 @@ def get_version(rel_path):
             delim = '"' if '"' in line else "'"
             return line.split(delim)[1]
     else:
-        raise RuntimeError("Unable to find version string.")
+        msg = "Unable to find version string."
+        raise RuntimeError(msg)
 
 
 core_requirements = [
-    "mujoco",
+    "mujoco==3.2.0",
     "numpy",
     "dm_control",
     "mujoco_utils",

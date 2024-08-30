@@ -49,3 +49,6 @@ class MujocoModel(TransformElement):
     def set_color(self, color: np.ndarray):
         for b in self.bodies:
             b.set_color(color)
+
+    def set_name(self, name: str):
+        self.mjcf.model = name

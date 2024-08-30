@@ -1,5 +1,5 @@
 import re
-from typing import Callable, Optional
+from collections.abc import Callable
 
 import mujoco.viewer
 import numpy as np
@@ -30,6 +30,7 @@ class Mojo:
         self.root_element = MujocoModel(self, model_mjcf)
         self._texture_store: AssetStore = AssetStore(texture_store_capacity)
         self._mesh_store: AssetStore = AssetStore(mesh_store_capacity)
+        self._camera_renderers: dict[tuple[int, int], mujoco.Renderer] | None = {}
         self._dirty = True
         self._passive_dirty = False
         self._passive_viewer_handle = None
@@ -39,6 +40,7 @@ class Mojo:
         self._physics = mjcf.Physics.from_mjcf_model(self.root_element.mjcf)
         self._physics.legacy_step = False
         self._dirty = False
+        self.clear_renderers()
 
     @property
     def physics(self):
@@ -76,32 +78,39 @@ class Mojo:
     def set_timestep(self, timestep: float):
         self.root_element.mjcf.option.timestep = timestep
 
-    def launch_viewer(self, passive: bool = False) -> None:
+    def launch_viewer(self, passive: bool = False, name: str = None) -> None:
+        if name:
+            self.root_element.mjcf.model = name
         # passive viewer does not step.
         if self._dirty:
             self._create_physics_from_model()
         if passive:
             self._passive_dirty = False
             self._passive_viewer_handle = mujoco.viewer.launch_passive(
-                self._physics.model.ptr, self._physics.data.ptr
+                self._physics.model.ptr,
+                self._physics.data.ptr,
             )
         else:
             mujoco.viewer.launch(self._physics.model.ptr, self._physics.data.ptr)
 
     def sync_passive_viewer(self):
         if self._passive_viewer_handle is None:
-            raise RuntimeError("You do not have a passive viewer running.")
+            msg = "You do not have a passive viewer running."
+            raise RuntimeError(msg)
         if self._passive_dirty:
             self._passive_dirty = False
             self._create_physics_from_model()
             self._passive_viewer_handle._sim().load(
-                self._physics.model.ptr, self._physics.data.ptr, ""
+                self._physics.model.ptr,
+                self._physics.data.ptr,
+                "",
             )
         self._passive_viewer_handle.sync()
 
     def close_passive_viewer(self):
         if self._passive_viewer_handle is None:
-            raise RuntimeError("You do not have a passive viewer running.")
+            msg = "You do not have a passive viewer running."
+            raise RuntimeError(msg)
         self._passive_viewer_handle.close()
 
     def mark_dirty(self):
@@ -114,13 +123,13 @@ class Mojo:
             self._create_physics_from_model()
         self.physics.step()
 
-    def get_material(self, path: str) -> Optional[mjcf.Element]:
+    def get_material(self, path: str) -> mjcf.Element | None:
         return self._texture_store.get(path)
 
     def store_material(self, path: str, material_mjcf: mjcf.Element) -> None:
         self._texture_store.add(path, material_mjcf)
 
-    def get_mesh(self, path: str) -> Optional[mjcf.Element]:
+    def get_mesh(self, path: str) -> mjcf.Element | None:
         return self._mesh_store.get(path)
 
     def store_mesh(self, path: str, mesh_mjcf: mjcf.Element) -> None:
@@ -130,7 +139,7 @@ class Mojo:
         self,
         path: str,
         parent: TransformElement = None,
-        on_loaded: Optional[Callable[[mjcf.RootElement], None]] = None,
+        on_loaded: Callable[[mjcf.RootElement], None] | None = None,
         handle_freejoints: bool = False,
     ):
         """Load a Mujoco model from xml file and attach to specified parent element.
@@ -144,7 +153,6 @@ class Mojo:
         Freejoint bodies will be re-parented to the worldbody.
         :return: A Body element representing the attached model.
         """
-
         model_mjcf = mjcf.from_path(path)
         if on_loaded is not None:
             on_loaded(model_mjcf)
@@ -152,7 +160,8 @@ class Mojo:
         attached_model_mjcf = attach_site.attach(model_mjcf)
         if handle_freejoints:
             root_model_mjcf = resolve_freejoints(
-                self.root_element.mjcf, attached_model_mjcf
+                self.root_element.mjcf,
+                attached_model_mjcf,
             )
             self.root_element = TransformElement(self, root_model_mjcf)
         self.mark_dirty()
@@ -173,6 +182,20 @@ class Mojo:
         self.root_element.mjcf.visual.headlight.specular = specular
         self.root_element.mjcf.visual.headlight.active = active
         self.mark_dirty()
+
+    def get_renderer(self, resolution: tuple[int, int]):
+        if resolution not in self._camera_renderers:
+            self._camera_renderers[resolution] = mujoco.Renderer(
+                self.model,
+                resolution[0],
+                resolution[1],
+            )
+        return self._camera_renderers[resolution]
+
+    def clear_renderers(self):
+        for renderer in self._camera_renderers.values():
+            renderer.close()
+        self._camera_renderers.clear()
 
     def __str__(self):
         xml = self.root_element.mjcf.to_xml_string()

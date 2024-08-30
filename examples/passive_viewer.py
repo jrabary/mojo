@@ -1,10 +1,10 @@
 """Example showing:
 
- - Spawning of objects
- - Moving objects
- - Using passive viewer
- - Setting colors
- - Add a light
+- Spawning of objects
+- Moving objects
+- Using passive viewer
+- Setting colors
+- Add a light
 """
 import time
 from pathlib import Path
@@ -16,7 +16,7 @@ from mojo.elements import Body, Geom
 from mojo.elements.light import Light
 
 mojo = Mojo(str(Path(__file__).parent / "world.xml"), 0.02)
-mojo.launch_viewer(passive=True)
+mojo.launch_viewer(passive=True, name="Example")
 mojo.set_headlight(active=False)  # Turn off main light
 body = Body.create(mojo)
 light = Light.create(mojo, ambient=np.array([1, 0, 0]))
